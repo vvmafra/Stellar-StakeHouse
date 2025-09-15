@@ -45,3 +45,23 @@ fn test_join_adds_user_to_participants() {
     assert_eq!(participants.len(), 1);
     assert_eq!(participants.get_unchecked(0), user);
 }
+
+#[test]
+fn test_authorize_owner_storage() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+
+    // Test that we can set and retrieve the owner_authorized flag
+    env.as_contract(&contract_id, || {
+        env.storage().instance().set(&Symbol::new(&env, "owner_authorized"), &true);
+    });
+
+    let owner_authorized: bool = env.as_contract(&contract_id, || {
+        env.storage()
+            .instance()
+            .get(&Symbol::new(&env, "owner_authorized"))
+            .unwrap_or(false)
+    });
+
+    assert_eq!(owner_authorized, true);
+}

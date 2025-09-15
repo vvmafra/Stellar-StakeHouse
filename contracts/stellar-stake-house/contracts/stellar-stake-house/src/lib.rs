@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, vec, Address, Env, String, Symbol, Vec,};
+use soroban_sdk::{contract, contractimpl, vec, Address, Env, String, Symbol, Vec, token};
 
 #[contract]
 pub struct Contract;
@@ -30,9 +30,32 @@ impl Contract {
         env.storage().persistent().set(&key, &participants);
     }
 
-    pub fn authorize_owner(env: Env, owner: Address, token: Address) {
-        // Save the authorization to move tokens
+    pub fn authorize_owner(env: Env, owner: Address) {
+        // Hardcoded XLM token address for testnet
+        let xlm_token: Address = Address::from_string(&String::from_str(&env, "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"));
+        
+        // Require owner's authorization
+        owner.require_auth();
+        
+        // Create XLM token client
+        let token_client = token::Client::new(&env, &xlm_token);
+        
+        // Authorize the owner to move tokens on behalf of this contract
+        // Set amount to 40 XLM (40 * 10^7 stroops) for transfers
+        let amount: i128 = 400_000_000;
+        let expiration_ledger = env.ledger().sequence() + 17280; // ~24 hours
+        
+        token_client.approve(
+            &owner,
+            &env.current_contract_address(),
+            &amount,
+            &expiration_ledger
+        );
+        
+        // Mark owner as authorized
+        env.storage().instance().set(&Symbol::new(&env, "owner_authorized"), &true);
     }
+
 
     pub fn distribute(env: Env) {
         // Iterate over the participants and distribute tokens
