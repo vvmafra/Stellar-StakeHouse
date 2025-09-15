@@ -1,10 +1,11 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{vec, Env, String};
+use soroban_sdk::{vec, Env, String, Address, Symbol, Vec as SorobanVec};
+use soroban_sdk::testutils::Address as TestAddress;
 
 #[test]
-fn test() {
+fn test_hello() {
     let env = Env::default();
     let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
@@ -18,4 +19,29 @@ fn test() {
             String::from_str(&env, "Dev"),
         ]
     );
+}
+
+#[test]
+fn test_join_adds_user_to_participants() {
+    let env = Env::default();
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(&env, &contract_id);
+
+    // Create a dummy address for the user
+    let user = <soroban_sdk::Address as TestAddress>::generate(&env);
+
+    // Call join(user)
+    client.join(&user);
+
+    // Read back participants from storage within the contract context
+    let participants: SorobanVec<Address> = env.as_contract(&contract_id, || {
+        let key = Symbol::new(&env, "participants");
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| SorobanVec::new(&env))
+    });
+
+    assert_eq!(participants.len(), 1);
+    assert_eq!(participants.get_unchecked(0), user);
 }
