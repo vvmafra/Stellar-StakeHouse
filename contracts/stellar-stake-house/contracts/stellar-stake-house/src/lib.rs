@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, vec, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, vec, Address, Env, String, Symbol, Vec,};
 
 #[contract]
 pub struct Contract;
@@ -17,6 +17,25 @@ pub struct Contract;
 impl Contract {
     pub fn hello(env: Env, to: String) -> Vec<String> {
         vec![&env, String::from_str(&env, "Hello"), to]
+    }
+    pub fn join(env: Env, user: Address) {
+        // Add the user to the list of participants
+        let key = Symbol::new(&env, "participants");
+        let mut participants: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(&env));
+        participants.push_back(user);
+        env.storage().persistent().set(&key, &participants);
+    }
+
+    pub fn authorize_owner(env: Env, owner: Address, token: Address) {
+        // Save the authorization to move tokens
+    }
+
+    pub fn distribute(env: Env) {
+        // Iterate over the participants and distribute tokens
     }
 }
 
