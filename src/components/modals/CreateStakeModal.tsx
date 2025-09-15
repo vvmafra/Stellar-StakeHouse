@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Coins, Timer, Users, AlertTriangle } from "lucide-react";
+import { walletService } from "@/services/walletService";
+import { sorobanService } from "@/services/sorobanService";
+import { STELLAR_CONFIG } from "@/config/stellar";
 
 interface CreateStakeModalProps {
   open: boolean;
@@ -27,16 +30,40 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
 
   const handleCreate = async () => {
     setIsCreating(true);
-    // Simulate transaction
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    setIsCreating(false);
-    onOpenChange(false);
-    setFormData({
-      token: "",
-      totalAmount: "",
-      duration: "",
-      customDuration: ""
-    });
+    
+    try {
+      // Get current wallet address
+      const currentWallet = walletService.getCurrentWallet();
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      // Call authorize_owner function
+      const result = await sorobanService.authorizeOwner(
+        STELLAR_CONFIG.CONTRACT_ID,
+        currentWallet.publicKey
+      );
+
+      if (result.success) {
+        console.log('✅ Authorize owner successful:', result);
+        // Show success message or handle success
+      } else {
+        console.error('❌ Authorize owner failed:', result.error);
+        throw new Error(result.error?.message || 'Failed to authorize owner');
+      }
+    } catch (error) {
+      console.error('Error in handleCreate:', error);
+      // Handle error - you might want to show a toast or error message
+    } finally {
+      setIsCreating(false);
+      onOpenChange(false);
+      setFormData({
+        token: "",
+        totalAmount: "",
+        duration: "",
+        customDuration: ""
+      });
+    }
   };
 
   const isFormValid = formData.token && formData.totalAmount && 

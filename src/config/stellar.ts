@@ -27,7 +27,7 @@ export const STELLAR_CONFIG = {
   // RPC URL
   rpcUrl: 'https://soroban-testnet.stellar.org',
 
-  CONTRACT_ID: "CCVNQAV6TOBBPVWHRDLAOXSR4OXDMCGQ4NEFITC6D7A5NWF7YXHUGVK7",
+  CONTRACT_ID: "CCUF3VIEKSYCBX5GIZEJ7YJ2GXZSD75TL34OC2K427XMZXXUCBI2WJH5",
 } as const;
 
 // Helper function to get current network info

@@ -294,6 +294,106 @@ export class SorobanService {
   }
 
   /**
+   * Call the authorize_owner function on the smart contract
+   */
+  public async authorizeOwner(contractId: string, ownerAddress: string): Promise<SorobanTransactionResult> {
+    try {
+      // Check if wallet is connected
+      const currentWallet = walletService.getCurrentWallet();
+      
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      const userPublicKey = currentWallet.publicKey;
+
+      // Get account details from the network
+      const account = await this.getAccountDetails(userPublicKey);
+
+      // Check if account is funded
+      const fundingStatus = await this.isAccountFunded(userPublicKey);
+      
+      if (!fundingStatus.funded) {
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_NOT_FUNDED',
+            message: fundingStatus.message,
+            details: {
+              balance: fundingStatus.balance,
+              userAddress: userPublicKey,
+              suggestion: 'Please fund your account with XLM using a testnet faucet before authorizing',
+              faucetUrl: fundingStatus.faucetUrl
+            }
+          }
+        };
+      }
+
+      // Create contract instance
+      const contract = new Contract(contractId);
+      
+      // Convert ownerAddress (public key string) to Address object
+      const owner = new Address(ownerAddress);
+      
+      // Create the contract call operation
+      const contractCallOperation = contract.call('authorize_owner', nativeToScVal(owner, { type: 'address' }));
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      })
+        .addOperation(contractCallOperation)
+        .setTimeout(30)
+        .build();
+
+      // Prepare the transaction for Soroban
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+
+      // Sign the prepared transaction using Freighter directly
+      const { signTransaction } = await import('@stellar/freighter-api');
+      const signedXdr = await signTransaction(
+        preparedTransaction.toEnvelope().toXDR('base64'),
+        { networkPassphrase: STELLAR_CONFIG.networkPassphrase }
+      );
+
+      // Reconstruct the signed transaction from XDR
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedXdr.signedTxXdr,
+        STELLAR_CONFIG.networkPassphrase
+      ) as Transaction;
+
+      // Submit the signed transaction
+      const submitResult = await this.submitTransaction(signedTransaction);
+      
+      // Poll for transaction completion
+      const finalResult = await this.pollTransactionStatus(submitResult.hash);
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        result: {
+          contractId,
+          ownerAddress,
+          message: 'Successfully authorized owner - contract invoked!',
+          finalResult: finalResult
+        }
+      };
+
+    } catch (error: any) {
+      console.error('Error calling authorize_owner function:', error);
+      return {
+        success: false,
+        error: {
+          code: 'CONTRACT_CALL_ERROR',
+          message: error.message || 'Failed to call authorize_owner function',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
    * Call the join function on the smart contract
    */
   public async joinStake(params: JoinStakeParams): Promise<SorobanTransactionResult> {
