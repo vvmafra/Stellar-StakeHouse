@@ -14,7 +14,7 @@ interface JoinStakeModalProps {
     tokenName: string;
     totalAvailable: string;
     duration: string;
-    apy: string;
+    APR: string;
     participants: number;
     status: string;
   } | null;
@@ -35,18 +35,18 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
     setAmount("");
   };
 
-  const estimatedRewards = amount ? (parseFloat(amount) * parseFloat(stake.apy.replace('%', '')) / 100).toFixed(2) : "0";
+  const estimatedRewards = amount ? (parseFloat(amount) * parseFloat(stake.APR.replace('%', '')) / 100).toFixed(2) : "0";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="stellar-surface border-0 max-w-md">
+      <DialogContent className="stellar-surface border-0 max-w-md max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
         <DialogHeader className="space-y-4">
           <DialogTitle className="font-subheading text-2xl text-stellar-black text-center">
             Join {stake.tokenName} Stake
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 scrollbar-thin scrollbar-thumb-stellar-gold/30 scrollbar-track-transparent">
           {/* Stake Info Summary */}
           <div className="space-y-3 p-4 rounded-lg bg-stellar-warm-grey/20">
             <div className="flex items-center justify-between">
@@ -72,10 +72,10 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-stellar-gold" />
-                <span className="font-body text-sm text-stellar-navy/70">APY</span>
+                <span className="font-body text-sm text-stellar-navy/70">APR</span>
               </div>
               <span className="font-subheading text-sm font-semibold text-stellar-teal">
-                {stake.apy}
+                {stake.APR}
               </span>
             </div>
           </div>

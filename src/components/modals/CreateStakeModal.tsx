@@ -49,14 +49,14 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
     return formData.duration;
   };
 
-  const estimatedAPY = formData.duration ? 
+  const estimatedAPR = formData.duration ? 
     (formData.duration.includes("30") ? "8-10%" :
      formData.duration.includes("60") ? "10-14%" :
      formData.duration.includes("90") ? "14-18%" : "Variable") : "Variable";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="stellar-surface border-0 max-w-lg">
+      <DialogContent className="stellar-surface border-0 max-w-lg max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
         <DialogHeader className="space-y-4">
           <DialogTitle className="font-subheading text-2xl text-stellar-black text-center">
             Create New Stake
@@ -66,7 +66,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
           </p>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 scrollbar-thin scrollbar-thumb-stellar-gold/30 scrollbar-track-transparent">
           {/* Token Selection */}
           <div className="space-y-2">
             <Label htmlFor="token" className="font-body text-sm font-medium text-stellar-black">
@@ -78,10 +78,11 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="XLM">XLM - Stellar Lumens</SelectItem>
-                <SelectItem value="USDC">USDC - USD Coin</SelectItem>
+                <SelectItem value="USDC">KALE</SelectItem>
+                {/* <SelectItem value="USDC">USDC - USD Coin</SelectItem>
                 <SelectItem value="SDF">SDF - Stellar Development</SelectItem>
                 <SelectItem value="AQUA">AQUA - Aquarius</SelectItem>
-                <SelectItem value="yXLM">yXLM - Ultra Stellar</SelectItem>
+                <SelectItem value="yXLM">yXLM - Ultra Stellar</SelectItem> */}
               </SelectContent>
             </Select>
           </div>
@@ -118,9 +119,9 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="30 days">30 days (8-10% APY)</SelectItem>
-                <SelectItem value="60 days">60 days (10-14% APY)</SelectItem>
-                <SelectItem value="90 days">90 days (14-18% APY)</SelectItem>
+                <SelectItem value="30 days">30 days (8-10% APR)</SelectItem>
+                <SelectItem value="60 days">60 days (10-14% APR)</SelectItem>
+                <SelectItem value="90 days">90 days (14-18% APR)</SelectItem>
                 <SelectItem value="custom">Custom duration</SelectItem>
               </SelectContent>
             </Select>
@@ -172,10 +173,10 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 text-stellar-gold" />
-                    <span className="font-body text-sm text-stellar-navy/70">Est. APY</span>
+                    <span className="font-body text-sm text-stellar-navy/70">Est. APR</span>
                   </div>
                   <span className="font-subheading text-sm font-semibold text-stellar-teal">
-                    {estimatedAPY}
+                    {estimatedAPR}
                   </span>
                 </div>
               </div>

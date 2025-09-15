@@ -1,14 +1,43 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet, Star } from "lucide-react";
+import { Wallet, Star, Loader2, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useWallet } from "@/contexts/WalletContext";
+import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { connectWallet, isConnected, isConnecting, error, clearError } = useWallet();
+  const { toast } = useToast();
 
-  const handleConnectWallet = () => {
-    // Simulate wallet connection
-    navigate("/dashboard");
+  // Redirect to dashboard if already connected
+  useEffect(() => {
+    if (isConnected) {
+      navigate("/dashboard");
+    }
+  }, [isConnected, navigate]);
+
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Erro de Conexão",
+        description: error.message,
+        variant: "destructive",
+      });
+      clearError();
+    }
+  }, [error, toast, clearError]);
+
+  const handleConnectWallet = async () => {
+    try {
+      await connectWallet();
+      // Navigation will be handled by the useEffect above
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+      // Error handling is done by the context
+    }
   };
 
   return (
@@ -52,22 +81,43 @@ const Login = () => {
                 onClick={handleConnectWallet}
                 variant="stellar"
                 className="w-full h-14 text-lg rounded-xl"
+                disabled={isConnecting}
               >
-                <Wallet className="w-5 h-5 mr-3" />
-                Connect Freighter Wallet
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-5 h-5 mr-3" />
+                    Conectar Freighter Wallet
+                  </>
+                )}
               </Button>
               
-              <p className="text-center text-sm font-body text-stellar-navy/60">
-                Don't have Freighter?{" "}
-                <a 
-                  href="https://freighter.app" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-stellar-teal hover:text-stellar-teal/80 underline"
-                >
-                  Download here
-                </a>
-              </p>
+              <div className="space-y-3">
+                <p className="text-center text-sm font-body text-stellar-navy/60">
+                  Don't have Freighter?{" "}
+                  <a 
+                    href="https://freighter.app" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-stellar-teal hover:text-stellar-teal/80 underline"
+                  >
+                    Download here
+                  </a>
+                </p>
+                
+                <div className="bg-stellar-warm-grey/20 rounded-lg p-3 text-center">
+                  <p className="text-xs font-body text-stellar-navy/70">
+                    <strong>Rede Atual:</strong> {process.env.NODE_ENV === 'production' ? 'Mainnet' : 'Testnet'}
+                  </p>
+                  <p className="text-xs font-body text-stellar-navy/60 mt-1">
+                    Certifique-se de que sua wallet Freighter está configurada para a rede correta
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="pt-6 border-t border-stellar-warm-grey">
