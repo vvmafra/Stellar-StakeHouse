@@ -2,57 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Stellar Brand Design System - following Stellar Brand Manual 2023
+Primary colors: Generous Gold, Black, White
+Secondary colors: Lilac, Teal, Warm Grey, Navy Blue
+Typography: Anton (headlines), Lora (subheadings), Inter (body)
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Stellar Brand Colors - Primary Palette */
+    --stellar-gold: 45 99% 58%;        /* #FDDA24 - Generous Gold */
+    --stellar-black: 0 0% 6%;          /* #0F0F0F - Black */
+    --stellar-white: 220 13% 97%;      /* #F6F7F8 - White */
+    
+    /* Stellar Brand Colors - Secondary Palette */
+    --stellar-lilac: 256 54% 79%;      /* #B7ACE8 - Lilac */
+    --stellar-teal: 186 100% 35%;      /* #00A7B5 - Teal */
+    --stellar-warm-grey: 45 15% 82%;   /* #D6D2C4 - Warm Grey */
+    --stellar-navy: 212 100% 18%;      /* #002E5D - Navy Blue */
+    
+    /* Design System Mapping */
+    --background: var(--stellar-white);
+    --foreground: var(--stellar-black);
+    
+    --card: var(--stellar-white);
+    --card-foreground: var(--stellar-black);
+    
+    --popover: var(--stellar-white);
+    --popover-foreground: var(--stellar-black);
+    
+    --primary: var(--stellar-gold);
+    --primary-foreground: var(--stellar-black);
+    
+    --secondary: var(--stellar-warm-grey);
+    --secondary-foreground: var(--stellar-black);
+    
+    --muted: var(--stellar-warm-grey);
+    --muted-foreground: var(--stellar-navy);
+    
+    --accent: var(--stellar-teal);
+    --accent-foreground: var(--stellar-white);
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: var(--stellar-white);
+    
+    --border: var(--stellar-warm-grey);
+    --input: var(--stellar-white);
+    --ring: var(--stellar-gold);
+    
+    --radius: 0.75rem;
+    
+    /* Stellar-specific design tokens */
+    --stellar-gradient-gold: linear-gradient(135deg, hsl(var(--stellar-gold)), hsl(45 95% 65%));
+    --stellar-gradient-cosmic: linear-gradient(135deg, hsl(var(--stellar-navy)), hsl(var(--stellar-teal)));
+    --stellar-shadow-lilac: 0 8px 32px -8px hsl(var(--stellar-lilac) / 0.3);
+    --stellar-shadow-gold: 0 4px 20px -4px hsl(var(--stellar-gold) / 0.4);
+    --stellar-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
@@ -100,6 +105,48 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body;
+  }
+  
+  /* Stellar Brand Typography */
+  .font-headline {
+    font-family: 'Anton', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+  
+  .font-subheading {
+    font-family: 'Lora', serif;
+    font-weight: 500;
+  }
+  
+  .font-body {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+  }
+  
+  /* Stellar Brand Effects */
+  .stellar-stroke {
+    position: relative;
+  }
+  
+  .stellar-stroke::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: var(--stellar-gradient-gold);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0.8;
+  }
+  
+  .stellar-glow {
+    box-shadow: var(--stellar-shadow-gold);
+  }
+  
+  .stellar-surface {
+    background: hsl(var(--stellar-white));
+    border: 1px solid hsl(var(--stellar-warm-grey));
+    box-shadow: var(--stellar-shadow-lilac);
   }
 }

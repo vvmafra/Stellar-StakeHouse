@@ -47,16 +47,32 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+        // Stellar Brand Colors
+        stellar: {
+          gold: "hsl(var(--stellar-gold))",
+          black: "hsl(var(--stellar-black))",
+          white: "hsl(var(--stellar-white))",
+          lilac: "hsl(var(--stellar-lilac))",
+          teal: "hsl(var(--stellar-teal))",
+          "warm-grey": "hsl(var(--stellar-warm-grey))",
+          navy: "hsl(var(--stellar-navy))",
         },
+      },
+      fontFamily: {
+        headline: ['Anton', 'sans-serif'],
+        subheading: ['Lora', 'serif'],
+        body: ['Inter', 'sans-serif'],
+      },
+      backgroundImage: {
+        'stellar-gold': 'var(--stellar-gradient-gold)',
+        'stellar-cosmic': 'var(--stellar-gradient-cosmic)',
+      },
+      boxShadow: {
+        'stellar-lilac': 'var(--stellar-shadow-lilac)',
+        'stellar-gold': 'var(--stellar-shadow-gold)',
+      },
+      transitionTimingFunction: {
+        'stellar': 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
       borderRadius: {
         lg: "var(--radius)",
