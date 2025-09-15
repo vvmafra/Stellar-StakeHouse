@@ -69,6 +69,7 @@ const Dashboard = () => {
   };
 
   const handleJoinStake = (stake: typeof mockStakes[0]) => {
+    console.log("🚀 Opening JoinStakeModal for stake:", stake);
     setSelectedStake(stake);
     setJoinModalOpen(true);
   };

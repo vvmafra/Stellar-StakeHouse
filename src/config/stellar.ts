@@ -22,7 +22,12 @@ export const STELLAR_CONFIG = {
     
     // Whether to allow custom networks
     allowCustomNetwork: false,
-  }
+  },
+
+  // RPC URL
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+
+  CONTRACT_ID: "CCVNQAV6TOBBPVWHRDLAOXSR4OXDMCGQ4NEFITC6D7A5NWF7YXHUGVK7",
 } as const;
 
 // Helper function to get current network info
@@ -41,3 +46,4 @@ export const NETWORK_NAMES = {
   [Networks.TESTNET]: 'Testnet',
   [Networks.PUBLIC]: 'Mainnet',
 } as const;
+

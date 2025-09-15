@@ -188,6 +188,8 @@ export class WalletService {
 
       // Convert transaction to XDR
       const transactionXdr = transaction.toXDR();
+
+      console.log('Transaction XDR:', transactionXdr);
       
       // Sign with Freighter
       const signResult = await signTransaction(transactionXdr, {
@@ -196,6 +198,8 @@ export class WalletService {
 
       // Parse the signed transaction
       const signedTransaction = TransactionBuilder.fromXDR(signResult.signedTxXdr, STELLAR_CONFIG.networkPassphrase);
+      
+      console.log('Signed Transaction:', signedTransaction);
       
       return {
         success: true,
