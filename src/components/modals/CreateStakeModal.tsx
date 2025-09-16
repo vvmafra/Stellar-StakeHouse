@@ -13,9 +13,10 @@ import { STELLAR_CONFIG } from "@/config/stellar";
 interface CreateStakeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStakeCreated?: (stake: any) => void;
 }
 
-export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) => {
+export const CreateStakeModal = ({ open, onOpenChange, onStakeCreated }: CreateStakeModalProps) => {
   const [formData, setFormData] = useState({
     token: "",
     totalAmount: "",
@@ -41,15 +42,50 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
       console.log('currentWallet', currentWallet);
       console.log('STELLAR_CONFIG.CONTRACT_ID', STELLAR_CONFIG.CONTRACT_ID);
 
+      // Convert XLM amount to stroops (1 XLM = 10,000,000 stroops)
+      const amountInXlm = parseFloat(formData.totalAmount);
+      if (isNaN(amountInXlm) || amountInXlm <= 0) {
+        throw new Error('Please enter a valid amount');
+      }
+      const amountInStroops = Math.floor(amountInXlm * 10000000);
+      
+      console.log(`💰 Converting ${amountInXlm} XLM to ${amountInStroops} stroops`);
+
       // Call authorizeComplete function (does both XLM token auth + internal allowance)
       const result = await sorobanService.authorizeComplete(
         STELLAR_CONFIG.CONTRACT_ID,
         currentWallet.publicKey,
-        400000000 // 40 XLM in stroops
+        amountInStroops
       );
 
       if (result.success) {
         console.log('✅ Authorize owner successful:', result);
+        
+        // Create new stake object
+        const newStake = {
+          id: Date.now(), // Simple ID generation
+          tokenName: formData.token,
+          totalAvailable: formData.totalAmount,
+          duration: formData.duration === "custom" ? `${formData.customDuration} days` : formData.duration,
+          APR: estimatedAPR,
+          participants: 1, // Creator is the first participant
+          status: "active" as const,
+          createdAt: new Date().toISOString(),
+          creator: currentWallet.publicKey
+        };
+
+        // Save to localStorage
+        const existingStakes = JSON.parse(localStorage.getItem('userStakes') || '[]');
+        const updatedStakes = [...existingStakes, newStake];
+        localStorage.setItem('userStakes', JSON.stringify(updatedStakes));
+        
+        console.log('💾 Stake saved to localStorage:', newStake);
+        
+        // Notify parent component
+        if (onStakeCreated) {
+          onStakeCreated(newStake);
+        }
+        
         // Show success message or handle success
         // You can add a toast notification here
       } else {
@@ -73,6 +109,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
       console.error('Error in handleCreate:', error);
       // Handle error - you might want to show a toast or error message
     } finally {
+      //função para adicionar um mockStakes do Dashboard
       setIsCreating(false);
       onOpenChange(false);
       setFormData({
@@ -104,7 +141,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
       <DialogContent className="stellar-surface border-0 max-w-lg max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
         <DialogHeader className="space-y-4">
           <DialogTitle className="font-subheading text-2xl text-stellar-black text-center">
-            Create New Stake
+            Create New Project
           </DialogTitle>
           <p className="font-body text-stellar-navy/70 text-center">
             Set up a new staking pool for the community
@@ -123,7 +160,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="XLM">XLM - Stellar Lumens</SelectItem>
-                <SelectItem value="USDC">KALE</SelectItem>
+                {/* <SelectItem value="USDC">KALE</SelectItem> */}
                 {/* <SelectItem value="USDC">USDC - USD Coin</SelectItem>
                 <SelectItem value="SDF">SDF - Stellar Development</SelectItem>
                 <SelectItem value="AQUA">AQUA - Aquarius</SelectItem>
@@ -237,7 +274,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
               </p>
               <p className="font-body text-xs text-stellar-navy/70">
                 As the stake creator, you're responsible for providing the stated rewards. 
-                This action will lock your tokens until the stake period ends.
+                This action will allow the contract to spend your amount of tokens until the stake period ends.
               </p>
             </div>
           </div>
@@ -259,7 +296,7 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
               variant="stellar"
               className="flex-1 h-12 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isCreating ? "Creating Stake..." : "Create Stake"}
+              {isCreating ? "Creating Project..." : "Create Project"}
             </Button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -32,9 +32,36 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
   const [isConfirming, setIsConfirming] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   
   const { wallet, isConnected } = useWallet();
   console.log("🔗 Wallet state", { wallet, isConnected });
+
+  // Get XLM balance when modal opens and wallet is connected
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (open && isConnected && wallet?.publicKey) {
+        setIsLoadingBalance(true);
+        try {
+          const balanceResult = await sorobanService.getXlmBalance(wallet.publicKey);
+          if (balanceResult.success) {
+            setAmount(balanceResult.balance);
+            console.log(`💰 XLM balance loaded: ${balanceResult.balance}`);
+          } else {
+            console.error('Failed to load XLM balance:', balanceResult.error);
+            setAmount("0");
+          }
+        } catch (error) {
+          console.error('Error loading XLM balance:', error);
+          setAmount("0");
+        } finally {
+          setIsLoadingBalance(false);
+        }
+      }
+    };
+
+    fetchBalance();
+  }, [open, isConnected, wallet?.publicKey]);
 
   if (!stake) {
     console.log("❌ No stake provided");
@@ -63,12 +90,21 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
     setErrorMessage("");
 
     try {
+      // Convert XLM amount to stroops (1 XLM = 10,000,000 stroops)
+      const amountInXlm = parseFloat(amount);
+      if (isNaN(amountInXlm) || amountInXlm <= 0) {
+        throw new Error('Please enter a valid amount');
+      }
+      const amountInStroops = Math.floor(amountInXlm * 10000000);
+      
+      console.log(`💰 Converting ${amountInXlm} XLM to ${amountInStroops} stroops`);
+
       // First, authorize the contract to spend XLM (both XLM token auth + internal allowance)
       console.log("Authorizing contract to spend XLM...");
       const authResult = await sorobanService.authorizeComplete(
         STELLAR_CONFIG.CONTRACT_ID,
         wallet.publicKey,
-        400000000 // 40 XLM in stroops
+        amountInStroops
       );
 
       if (!authResult.success) {
@@ -155,25 +191,49 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
             </div>
           </div>
 
-          {/* Amount Input */}
+          {/* Amount Display */}
           <div className="space-y-2">
-            <Label htmlFor="amount" className="font-body text-sm font-medium text-stellar-black">
+            <Label className="font-body text-sm font-medium text-stellar-black">
               Amount to stake
             </Label>
             <div className="relative">
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="h-12 text-lg font-body pr-16 border-stellar-warm-grey focus:ring-stellar-gold focus:border-stellar-gold"
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <span className="font-body text-sm font-semibold text-stellar-navy/70">
-                  {stake.tokenName}
-                </span>
+              <div className="h-12 flex items-center justify-between px-4 bg-stellar-warm-grey/20 border border-stellar-warm-grey rounded-md">
+                <div className="flex items-center space-x-2">
+                  {isLoadingBalance ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-stellar-gold"></div>
+                      <span className="font-body text-lg text-stellar-navy/70">Loading balance...</span>
+                    </>
+                  ) : (
+                    <span className="font-body text-lg font-semibold text-stellar-black">
+                      {amount} {stake.tokenName}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isConnected && wallet?.publicKey) {
+                      setIsLoadingBalance(true);
+                      sorobanService.getXlmBalance(wallet.publicKey).then(result => {
+                        if (result.success) {
+                          setAmount(result.balance);
+                        }
+                        setIsLoadingBalance(false);
+                      });
+                    }
+                  }}
+                  disabled={isLoadingBalance}
+                  className="text-stellar-gold hover:text-stellar-gold/80 disabled:opacity-50 p-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               </div>
+            </div>
+            <div className="text-xs text-stellar-navy/60">
+              Your XLM balance will be automatically loaded
             </div>
           </div>
 
@@ -226,7 +286,7 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
                 Important Notice
               </p>
               <p className="font-body text-xs text-stellar-navy/70">
-                Staked tokens will be locked for the full duration. Early withdrawal is not permitted.
+                Delegated tokens will be in your account the whole time! If you withdrawal, you won't get the next rewards :(.
               </p>
             </div>
           </div>

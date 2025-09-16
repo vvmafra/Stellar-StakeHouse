@@ -490,5 +490,6 @@ class StellarService {
     
     throw new Error('Transaction polling timeout');
   }
+}
 
 export const stellarService = new StellarService();

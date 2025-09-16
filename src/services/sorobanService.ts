@@ -395,7 +395,7 @@ export class SorobanService {
    * Authorize the contract to spend XLM from the native XLM token
    * This is the FIRST step - authorization on the native XLM token
    */
-  public async authorizeXlmToken(contractId: string, ownerAddress: string, amount: number = 400000000): Promise<SorobanTransactionResult> {
+  public async authorizeXlmToken(contractId: string, ownerAddress: string, amount: number): Promise<SorobanTransactionResult> {
     try {
       console.log('🚀 Starting XLM token authorization with:', { contractId, ownerAddress, amount });
       
@@ -541,7 +541,7 @@ export class SorobanService {
    * 1. Authorize XLM token (native token authorization)
    * 2. Set internal allowance in your contract
    */
-  public async authorizeComplete(contractId: string, ownerAddress: string, amount: number = 400000000): Promise<SorobanTransactionResult> {
+  public async authorizeComplete(contractId: string, ownerAddress: string, amount: number): Promise<SorobanTransactionResult> {
     try {
       console.log('🚀 Starting COMPLETE authorization process...');
       
@@ -564,7 +564,7 @@ export class SorobanService {
       
       // Step 2: Set internal allowance
       console.log('📝 Step 2: Setting internal allowance...');
-      const internalAuthResult = await this.authorizeOwner(contractId, ownerAddress);
+      const internalAuthResult = await this.authorizeOwner(contractId, ownerAddress, amount);
       
       if (!internalAuthResult.success) {
         return {
@@ -609,7 +609,7 @@ export class SorobanService {
    * Call the approve function on the smart contract to authorize XLM spending
    * This is the SECOND step - internal allowance in your contract
    */
-  public async authorizeOwner(contractId: string, ownerAddress: string): Promise<SorobanTransactionResult> {
+  public async authorizeOwner(contractId: string, ownerAddress: string, amount: number): Promise<SorobanTransactionResult> {
     try {
       console.log('🚀 Starting authorizeOwner with:', { contractId, ownerAddress });
       
@@ -684,8 +684,7 @@ export class SorobanService {
       // The approve function signature is: approve(env: Env, owner: Address, spender: Address, amount: i128)
       // We need to pass: owner (who is approving), spender (who gets permission), amount
       const spender = new Address(contractId); // The contract itself is the spender
-      const amount = 400000000; // 40 XLM in stroops
-      // const amount = 40 * 10000000; // 40 XLM in stroops
+      console.log('💰 Using amount:', amount, 'stroops');
       
       const contractCallOperation = contract.call(
         'approve', 
@@ -1061,6 +1060,36 @@ export class SorobanService {
     } catch (error: any) {
       console.error('Error getting account balance:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get XLM balance from Horizon API
+   */
+  public async getXlmBalance(publicKey: string): Promise<{ balance: string; success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${STELLAR_CONFIG.horizonUrl}/accounts/${publicKey}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const accountData = await response.json();
+      const balances = accountData.balances || [];
+      const nativeBalance = balances.find((balance: any) => balance.asset_type === 'native');
+      const balance = nativeBalance ? nativeBalance.balance : '0';
+      
+      return {
+        balance,
+        success: true
+      };
+    } catch (error: any) {
+      console.error('Error fetching XLM balance from Horizon:', error);
+      return {
+        balance: '0',
+        success: false,
+        error: error.message
+      };
     }
   }
 }

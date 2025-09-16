@@ -10,15 +10,15 @@ import { useWallet } from "@/contexts/WalletContext";
 
 // Mock data for stakes
 const mockStakes = [
-  {
-    id: 1,
-    tokenName: "XLM",
-    totalAvailable: "50,000",
-    duration: "30 days",
-    APR: "8.5%",
-    participants: 127, 
-    status: "active"
-  },
+  // {
+  //   id: 1,
+  //   tokenName: "XLM",
+  //   totalAvailable: "50,000",
+  //   duration: "30 days",
+  //   APR: "8.5%",
+  //   participants: 127, 
+  //   status: "active"
+  // },
   {
     id: 2,
     tokenName: "USDC",
@@ -37,15 +37,15 @@ const mockStakes = [
     participants: 234,
     status: "active"
   },
-  {
-    id: 4,
-    tokenName: "AQUA",
-    totalAvailable: "75,000",
-    duration: "45 days",
-    APR: "10.3%",
-    participants: 156,
-    status: "filling"
-  }
+  // {
+  //   id: 4,
+  //   tokenName: "AQUA",
+  //   totalAvailable: "75,000",
+  //   duration: "45 days",
+  //   APR: "10.3%",
+  //   participants: 156,
+  //   status: "filling"
+  // }
 ];
 
 const Dashboard = () => {
@@ -54,6 +54,8 @@ const Dashboard = () => {
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedStake, setSelectedStake] = useState<typeof mockStakes[0] | null>(null);
+  const [stakes, setStakes] = useState(mockStakes);
+  const [userStakes, setUserStakes] = useState<any[]>([]);
 
   // Redirect to login if not connected
   useEffect(() => {
@@ -61,6 +63,24 @@ const Dashboard = () => {
       navigate("/");
     }
   }, [isConnected, isConnecting, navigate]);
+
+  // Load user stakes from localStorage
+  useEffect(() => {
+    const loadUserStakes = () => {
+      try {
+        const savedStakes = localStorage.getItem('userStakes');
+        if (savedStakes) {
+          const parsedStakes = JSON.parse(savedStakes);
+          setUserStakes(parsedStakes);
+          console.log('📂 Loaded user stakes from localStorage:', parsedStakes);
+        }
+      } catch (error) {
+        console.error('Error loading user stakes from localStorage:', error);
+      }
+    };
+
+    loadUserStakes();
+  }, []);
 
   // Function to format wallet address
   const formatWalletAddress = (address: string) => {
@@ -73,6 +93,14 @@ const Dashboard = () => {
     setSelectedStake(stake);
     setJoinModalOpen(true);
   };
+
+  const handleStakeCreated = (newStake: any) => {
+    console.log("🎉 New stake created:", newStake);
+    setUserStakes(prevStakes => [...prevStakes, newStake]);
+  };
+
+  // Combine mock stakes with user stakes
+  const allStakes = [...mockStakes, ...userStakes];
 
   const handleLogout = async () => {
     try {
@@ -120,7 +148,7 @@ const Dashboard = () => {
               className="px-6"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Create New Stake
+              Create New Project
             </Button>
           </div>
         </div>
@@ -137,8 +165,8 @@ const Dashboard = () => {
                   <Coins className="w-6 h-6 text-stellar-teal" />
                 </div>
                 <div>
-                  <p className="font-body text-sm text-stellar-navy/70">Total Staked</p>
-                  <p className="font-subheading text-2xl text-stellar-black">$2.4M</p>
+                  <p className="font-body text-sm text-stellar-navy/70">Total Delegated</p>
+                  <p className="font-subheading text-2xl text-stellar-black">1.7M</p>
                 </div>
               </div>
             </CardContent>
@@ -180,18 +208,28 @@ const Dashboard = () => {
               Open Projects
             </h2>
             <p className="font-body text-stellar-navy/70">
-              {mockStakes.length} projects available
+              {allStakes.length} projects available
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockStakes.map((stake) => (
+            {allStakes.map((stake) => (
               <Card key={stake.id} className="bg-stellar-warm-grey/20 border border-stellar-warm-grey/30 hover:shadow-stellar-gold transition-stellar cursor-pointer group">
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="font-subheading text-xl text-stellar-black">
-                      {stake.tokenName}
-                    </CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <CardTitle className="font-subheading text-xl text-stellar-black">
+                        {stake.tokenName}
+                      </CardTitle>
+                      {userStakes.some(userStake => userStake.id === stake.id) && (
+                        <Badge 
+                          variant="outline" 
+                          className="px-2 py-1 text-xs font-medium bg-stellar-gold/20 text-stellar-gold border-stellar-gold/30"
+                        >
+                          Your Project
+                        </Badge>
+                      )}
+                    </div>
                     <Badge 
                       variant={stake.status === "active" ? "default" : "secondary"}
                       className={stake.status === "active" 
@@ -223,14 +261,15 @@ const Dashboard = () => {
                     <div className="flex justify-between">
                       <span className="font-body text-sm text-stellar-navy/70">APR</span>
                       <span className="font-subheading text-lg font-semibold text-stellar-teal">
-                        {stake.APR}
+                        {/* {stake.APR} */}
+                        TBD
                       </span>
                     </div>
                     
                     <div className="flex justify-between">
                       <span className="font-body text-sm text-stellar-navy/70">Participants</span>
                       <span className="font-body text-sm text-stellar-black">
-                        {stake.participants}
+                        {/* {stake.participants} */}
                       </span>
                     </div>
                   </div>
@@ -240,7 +279,7 @@ const Dashboard = () => {
                     variant="stellar"
                     className="w-full group-hover:stellar-glow"
                   >
-                    Join Stake
+                    Join Project
                   </Button>
                 </CardContent>
               </Card>
@@ -256,10 +295,11 @@ const Dashboard = () => {
         stake={selectedStake}
       />
       
-      <CreateStakeModal 
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-      />
+        <CreateStakeModal 
+          open={createModalOpen} 
+          onOpenChange={setCreateModalOpen}
+          onStakeCreated={handleStakeCreated}
+        />
     </div>
   );
 };

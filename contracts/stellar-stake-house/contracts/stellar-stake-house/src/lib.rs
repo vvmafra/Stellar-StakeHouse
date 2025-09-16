@@ -131,6 +131,11 @@ impl Contract {
             .get((owner, spender))
             .unwrap_or(0)
     }
+
+    pub fn get_owner(env: Env) -> Address {
+        env.storage().instance().get(&Symbol::new(&env, "owner")).unwrap_or(Address::from_string(&String::from_str(&env, "")));
+        
+    }
 }
 
 mod test;
