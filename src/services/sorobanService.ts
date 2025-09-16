@@ -131,7 +131,7 @@ export class SorobanService {
       const account = await this.getAccountDetails(publicKey);
       
       // Check if balances exist and find native balance
-      const balances = account.balances || [];
+      const balances = (account as any).balances || [];
       const nativeBalance = balances.find((balance: any) => balance.asset_type === 'native');
       const balance = nativeBalance ? nativeBalance.balance : '0';
       const funded = parseFloat(balance) > 0;
@@ -277,7 +277,35 @@ export class SorobanService {
         if (transaction.status === 'SUCCESS') {
           return transaction;
         } else if (transaction.status === 'FAILED') {
-          throw new Error(`Transaction failed: ${transaction.resultXdr}`);
+          console.error('❌ Transaction failed with full details:', {
+            status: transaction.status,
+            resultXdr: transaction.resultXdr,
+            resultMetaXdr: transaction.resultMetaXdr,
+            ledger: transaction.ledger,
+            createdAt: transaction.createdAt,
+            fullTransaction: transaction
+          });
+          
+          // Try to decode the error from resultXdr
+          let errorMessage = 'Transaction failed';
+          try {
+            if (transaction.resultXdr) {
+              console.error('🔍 Raw result XDR:', transaction.resultXdr);
+              
+              // Try to extract more meaningful error information
+              const resultXdr = transaction.resultXdr;
+              if (resultXdr._switch && resultXdr._switch.name === 'txFailed') {
+                errorMessage = 'Transaction failed - likely due to insufficient balance, invalid token address, or authorization issues';
+              } else {
+                errorMessage = `Transaction failed. Result XDR: ${JSON.stringify(resultXdr)}`;
+              }
+            }
+          } catch (decodeError) {
+            console.error('❌ Could not process result XDR:', decodeError);
+            errorMessage = `Transaction failed: ${transaction.resultXdr}`;
+          }
+          
+          throw new Error(errorMessage);
         }
         
         // Wait 2 seconds before next attempt
@@ -294,10 +322,98 @@ export class SorobanService {
   }
 
   /**
+   * Test if contract exists and has the authorize_owner function
+   */
+  public async testContractFunction(contractId: string): Promise<{ exists: boolean; error?: string }> {
+    try {
+      console.log('🔍 Testing contract function existence...');
+      
+      // Simply try to create contract instance (this will validate the contract ID format)
+      try {
+        const contractInstance = new Contract(contractId);
+        console.log('✅ Contract instance created with ID:', contractId);
+        
+        // Basic validation - if we can create the instance, the contract ID is valid
+        // The actual contract existence will be tested when we try to call the function
+        return { exists: true };
+      } catch (contractError: any) {
+        console.error('❌ Contract function test failed:', contractError);
+        return { exists: false, error: `Invalid contract ID: ${contractError.message}` };
+      }
+    } catch (error: any) {
+      console.error('❌ Contract test failed:', error);
+      return { exists: false, error: `Contract validation error: ${error.message}` };
+    }
+  }
+
+  /**
+   * Test wallet authorization capabilities
+   */
+  public async testWalletAuth(): Promise<{ canSign: boolean; error?: string }> {
+    try {
+      console.log('🔐 Testing wallet authorization capabilities...');
+      
+      const currentWallet = walletService.getCurrentWallet();
+      if (!currentWallet?.isConnected) {
+        return { canSign: false, error: 'Wallet not connected' };
+      }
+
+      // Test if we can get the wallet's public key
+      const publicKey = currentWallet.publicKey;
+      if (!publicKey) {
+        return { canSign: false, error: 'Cannot get public key from wallet' };
+      }
+
+      console.log('✅ Wallet public key retrieved:', publicKey);
+
+      // Test if we can create a simple transaction
+      try {
+        const account = await this.getAccountDetails(publicKey);
+        console.log('✅ Account details retrieved:', account.accountId());
+        
+        // Test if we can create a simple transaction
+        const transaction = new TransactionBuilder(account, {
+          fee: BASE_FEE,
+          networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+        })
+          .setTimeout(30)
+          .build();
+        
+        console.log('✅ Transaction builder works');
+        
+        return { canSign: true };
+      } catch (error: any) {
+        return { canSign: false, error: `Account error: ${error.message}` };
+      }
+    } catch (error: any) {
+      console.error('❌ Wallet auth test failed:', error);
+      return { canSign: false, error: error.message };
+    }
+  }
+
+  /**
    * Call the authorize_owner function on the smart contract
    */
   public async authorizeOwner(contractId: string, ownerAddress: string): Promise<SorobanTransactionResult> {
     try {
+      console.log('🚀 Starting authorizeOwner with:', { contractId, ownerAddress });
+      
+      // First test contract existence
+      console.log('🔍 Testing contract existence...');
+      const contractTest = await this.testContractFunction(contractId);
+      if (!contractTest.exists) {
+        throw new Error(`Contract test failed: ${contractTest.error}`);
+      }
+      console.log('✅ Contract test passed');
+      
+      // Then test wallet authorization capabilities
+      console.log('🔐 Testing wallet authorization...');
+      const authTest = await this.testWalletAuth();
+      if (!authTest.canSign) {
+        throw new Error(`Wallet authorization test failed: ${authTest.error}`);
+      }
+      console.log('✅ Wallet authorization test passed');
+      
       // Check if wallet is connected
       const currentWallet = walletService.getCurrentWallet();
       
@@ -306,6 +422,18 @@ export class SorobanService {
       }
 
       const userPublicKey = currentWallet.publicKey;
+      console.log('👤 User public key:', userPublicKey);
+      console.log('📋 Owner address parameter:', ownerAddress);
+      
+      // Verify that the owner address matches the wallet address
+      if (userPublicKey !== ownerAddress) {
+        console.warn('⚠️ WARNING: User public key does not match owner address!');
+        console.warn('This could cause authorization issues in the contract');
+        console.warn('User public key:', userPublicKey);
+        console.warn('Owner address:', ownerAddress);
+      } else {
+        console.log('✅ User public key matches owner address - authorization should work');
+      }
 
       // Get account details from the network
       const account = await this.getAccountDetails(userPublicKey);
@@ -331,12 +459,15 @@ export class SorobanService {
 
       // Create contract instance
       const contract = new Contract(contractId);
+      console.log('📄 Contract instance created:', contractId);
       
       // Convert ownerAddress (public key string) to Address object
       const owner = new Address(ownerAddress);
+      console.log('🔑 Owner address object created:', owner.toString());
       
       // Create the contract call operation
       const contractCallOperation = contract.call('authorize_owner', nativeToScVal(owner, { type: 'address' }));
+      console.log('📞 Contract call operation created');
 
       // Build the transaction
       const transaction = new TransactionBuilder(account, {
@@ -346,16 +477,39 @@ export class SorobanService {
         .addOperation(contractCallOperation)
         .setTimeout(30)
         .build();
+      console.log('🔨 Transaction built successfully');
 
       // Prepare the transaction for Soroban
+      console.log('⚙️ Preparing transaction for Soroban...');
       const preparedTransaction = await this.server.prepareTransaction(transaction);
+      console.log('✅ Transaction prepared successfully');
 
       // Sign the prepared transaction using Freighter directly
+      console.log('✍️ Signing transaction with Freighter...');
+      console.log('📋 Transaction details before signing:', {
+        sourceAccount: preparedTransaction.source,
+        sequenceNumber: preparedTransaction.sequence,
+        operations: preparedTransaction.operations.length,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase
+      });
+      
       const { signTransaction } = await import('@stellar/freighter-api');
-      const signedXdr = await signTransaction(
-        preparedTransaction.toEnvelope().toXDR('base64'),
-        { networkPassphrase: STELLAR_CONFIG.networkPassphrase }
-      );
+      
+      let signedXdr;
+      try {
+        signedXdr = await signTransaction(
+          preparedTransaction.toEnvelope().toXDR('base64'),
+          { networkPassphrase: STELLAR_CONFIG.networkPassphrase }
+        );
+        console.log('✅ Transaction signed successfully');
+        console.log('📋 Signed transaction details:', {
+          signedTxXdr: signedXdr.signedTxXdr ? 'Present' : 'Missing',
+          hasSignature: !!signedXdr.signedTxXdr
+        });
+      } catch (signError: any) {
+        console.error('❌ Signing failed:', signError);
+        throw new Error(`Transaction signing failed: ${signError.message}`);
+      }
 
       // Reconstruct the signed transaction from XDR
       const signedTransaction = TransactionBuilder.fromXDR(

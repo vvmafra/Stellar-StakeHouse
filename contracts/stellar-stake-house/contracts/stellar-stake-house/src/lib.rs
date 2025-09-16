@@ -31,31 +31,38 @@ impl Contract {
     }
 
     pub fn authorize_owner(env: Env, owner: Address) {
-        // Hardcoded XLM token address for testnet
+        // Require owner's authorization first
+        owner.require_auth();
+    
         let xlm_token: Address = Address::from_string(&String::from_str(&env, "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"));
         
-        // Require owner's authorization
-        owner.require_auth();
+        // Store owner information
+        env.storage().instance().set(&Symbol::new(&env, "owner_authorized"), &true);
+        env.storage().instance().set(&Symbol::new(&env, "owner"), &owner);
         
-        // Create XLM token client
         let token_client = token::Client::new(&env, &xlm_token);
         
-        // Authorize the owner to move tokens on behalf of this contract
         // Set amount to 40 XLM (40 * 10^7 stroops) for transfers
         let amount: i128 = 400_000_000;
         let expiration_ledger = env.ledger().sequence() + 17280; // ~24 hours
         
+        // Approve the owner to spend tokens FROM this contract
         token_client.approve(
-            &owner,
-            &env.current_contract_address(),
+            &env.current_contract_address(),  // from: the contract
+            &owner,                           // spender: the owner
             &amount,
             &expiration_ledger
         );
-        
-        // Mark owner as authorized
-        env.storage().instance().set(&Symbol::new(&env, "owner_authorized"), &true);
     }
 
+
+    pub fn is_owner_authorized(env: Env, owner: Address) -> bool {
+        // Check if the owner is already authorized
+        let authorized: bool = env.storage().instance().get(&Symbol::new(&env, "owner_authorized")).unwrap_or(false);
+        let stored_owner: Address = env.storage().instance().get(&Symbol::new(&env, "owner")).unwrap_or(Address::from_string(&String::from_str(&env, "")));
+        
+        authorized && stored_owner == owner
+    }
 
     pub fn distribute(env: Env) {
         // Iterate over the participants and distribute tokens

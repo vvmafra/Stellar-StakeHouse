@@ -38,6 +38,9 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
         throw new Error('Wallet is not connected');
       }
 
+      console.log('currentWallet', currentWallet);
+      console.log('STELLAR_CONFIG.CONTRACT_ID', STELLAR_CONFIG.CONTRACT_ID);
+
       // Call authorize_owner function
       const result = await sorobanService.authorizeOwner(
         STELLAR_CONFIG.CONTRACT_ID,
@@ -47,9 +50,23 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
       if (result.success) {
         console.log('✅ Authorize owner successful:', result);
         // Show success message or handle success
+        // You can add a toast notification here
       } else {
         console.error('❌ Authorize owner failed:', result.error);
-        throw new Error(result.error?.message || 'Failed to authorize owner');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Failed to authorize owner';
+        if (result.error?.message?.includes('insufficient balance')) {
+          errorMessage = 'Insufficient XLM balance. Please ensure you have enough XLM in your wallet.';
+        } else if (result.error?.message?.includes('invalid token address')) {
+          errorMessage = 'Token configuration error. Please contact support.';
+        } else if (result.error?.message?.includes('authorization issues')) {
+          errorMessage = 'Authorization failed. Please ensure your wallet is properly connected.';
+        } else {
+          errorMessage = result.error?.message || 'Failed to authorize owner';
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error in handleCreate:', error);
