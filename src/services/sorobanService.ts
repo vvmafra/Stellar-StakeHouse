@@ -392,7 +392,222 @@ export class SorobanService {
   }
 
   /**
-   * Call the authorize_owner function on the smart contract
+   * Authorize the contract to spend XLM from the native XLM token
+   * This is the FIRST step - authorization on the native XLM token
+   */
+  public async authorizeXlmToken(contractId: string, ownerAddress: string, amount: number = 400000000): Promise<SorobanTransactionResult> {
+    try {
+      console.log('🚀 Starting XLM token authorization with:', { contractId, ownerAddress, amount });
+      
+      // Check if wallet is connected
+      const currentWallet = walletService.getCurrentWallet();
+      
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      const userPublicKey = currentWallet.publicKey;
+      console.log('👤 User public key:', userPublicKey);
+      
+      // Verify that the owner address matches the wallet address
+      if (userPublicKey !== ownerAddress) {
+        console.warn('⚠️ WARNING: User public key does not match owner address!');
+        console.warn('User public key:', userPublicKey);
+        console.warn('Owner address:', ownerAddress);
+      } else {
+        console.log('✅ User public key matches owner address - authorization should work');
+      }
+
+      // Get account details from the network
+      const account = await this.getAccountDetails(userPublicKey);
+
+      // Check if account is funded
+      const fundingStatus = await this.isAccountFunded(userPublicKey);
+      
+      if (!fundingStatus.funded) {
+        return {
+          success: false,
+          error: {
+            code: 'ACCOUNT_NOT_FUNDED',
+            message: fundingStatus.message,
+            details: {
+              balance: fundingStatus.balance,
+              userAddress: userPublicKey,
+              suggestion: 'Please fund your account with XLM using a testnet faucet before authorizing',
+              faucetUrl: fundingStatus.faucetUrl
+            }
+          }
+        };
+      }
+
+      // Create XLM token contract instance
+      const xlmTokenAddress = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+      const xlmTokenContract = new Contract(xlmTokenAddress);
+      console.log('📄 XLM Token contract instance created:', xlmTokenAddress);
+      
+      // Convert addresses to Address objects
+      const owner = new Address(ownerAddress);
+      const spender = new Address(contractId);
+      console.log('🔑 Owner address object created:', owner.toString());
+      console.log('🔑 Spender (contract) address object created:', spender.toString());
+      
+      // Get current ledger sequence for expiration
+      const latestLedger = await this.server.getLatestLedger();
+      const expirationLedger = latestLedger.sequence + 17280; // 24 hours
+      console.log('⏰ Expiration ledger:', expirationLedger);
+      
+      // Create the XLM token approve operation
+      const xlmApproveOperation = xlmTokenContract.call(
+        'approve',
+        nativeToScVal(owner, { type: 'address' }), // from: the owner
+        nativeToScVal(spender, { type: 'address' }), // spender: the contract
+        nativeToScVal(amount, { type: 'i128' }), // amount
+        nativeToScVal(expirationLedger, { type: 'u32' }) // expiration
+      );
+      console.log('📞 XLM Token approve operation created');
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      })
+        .addOperation(xlmApproveOperation)
+        .setTimeout(30)
+        .build();
+      console.log('🔨 Transaction built successfully');
+
+      // Prepare the transaction for Soroban
+      console.log('⚙️ Preparing transaction for Soroban...');
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+      console.log('✅ Transaction prepared successfully');
+
+      // Sign the prepared transaction using Freighter directly
+      console.log('✍️ Signing transaction with Freighter...');
+      
+      const { signTransaction } = await import('@stellar/freighter-api');
+      
+      let signedXdr;
+      try {
+        signedXdr = await signTransaction(
+          preparedTransaction.toEnvelope().toXDR('base64'),
+          { networkPassphrase: STELLAR_CONFIG.networkPassphrase }
+        );
+        console.log('✅ Transaction signed successfully');
+      } catch (signError: any) {
+        console.error('❌ Signing failed:', signError);
+        throw new Error(`Transaction signing failed: ${signError.message}`);
+      }
+
+      // Reconstruct the signed transaction from XDR
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedXdr.signedTxXdr,
+        STELLAR_CONFIG.networkPassphrase
+      ) as Transaction;
+
+      // Submit the signed transaction
+      const submitResult = await this.submitTransaction(signedTransaction);
+      
+      // Poll for transaction completion
+      const finalResult = await this.pollTransactionStatus(submitResult.hash);
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        result: {
+          contractId,
+          ownerAddress,
+          xlmTokenAddress,
+          amount,
+          message: 'Successfully authorized XLM token - contract can now spend XLM!',
+          finalResult: finalResult
+        }
+      };
+
+    } catch (error: any) {
+      console.error('Error authorizing XLM token:', error);
+      return {
+        success: false,
+        error: {
+          code: 'XLM_TOKEN_AUTH_ERROR',
+          message: error.message || 'Failed to authorize XLM token',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
+   * Complete authorization process - does BOTH steps:
+   * 1. Authorize XLM token (native token authorization)
+   * 2. Set internal allowance in your contract
+   */
+  public async authorizeComplete(contractId: string, ownerAddress: string, amount: number = 400000000): Promise<SorobanTransactionResult> {
+    try {
+      console.log('🚀 Starting COMPLETE authorization process...');
+      
+      // Step 1: Authorize XLM token
+      console.log('📝 Step 1: Authorizing XLM token...');
+      const xlmAuthResult = await this.authorizeXlmToken(contractId, ownerAddress, amount);
+      
+      if (!xlmAuthResult.success) {
+        return {
+          success: false,
+          error: {
+            code: 'XLM_AUTH_FAILED',
+            message: 'Failed to authorize XLM token',
+            details: xlmAuthResult.error
+          }
+        };
+      }
+      
+      console.log('✅ Step 1 completed: XLM token authorized');
+      
+      // Step 2: Set internal allowance
+      console.log('📝 Step 2: Setting internal allowance...');
+      const internalAuthResult = await this.authorizeOwner(contractId, ownerAddress);
+      
+      if (!internalAuthResult.success) {
+        return {
+          success: false,
+          error: {
+            code: 'INTERNAL_AUTH_FAILED',
+            message: 'Failed to set internal allowance',
+            details: internalAuthResult.error
+          }
+        };
+      }
+      
+      console.log('✅ Step 2 completed: Internal allowance set');
+      
+      return {
+        success: true,
+        hash: internalAuthResult.hash,
+        result: {
+          contractId,
+          ownerAddress,
+          amount,
+          message: 'Complete authorization successful! Contract can now transfer XLM.',
+          xlmTokenAuth: xlmAuthResult.result,
+          internalAuth: internalAuthResult.result
+        }
+      };
+      
+    } catch (error: any) {
+      console.error('Error in complete authorization:', error);
+      return {
+        success: false,
+        error: {
+          code: 'COMPLETE_AUTH_ERROR',
+          message: error.message || 'Failed to complete authorization process',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
+   * Call the approve function on the smart contract to authorize XLM spending
+   * This is the SECOND step - internal allowance in your contract
    */
   public async authorizeOwner(contractId: string, ownerAddress: string): Promise<SorobanTransactionResult> {
     try {
@@ -466,7 +681,18 @@ export class SorobanService {
       console.log('🔑 Owner address object created:', owner.toString());
       
       // Create the contract call operation
-      const contractCallOperation = contract.call('authorize_owner', nativeToScVal(owner, { type: 'address' }));
+      // The approve function signature is: approve(env: Env, owner: Address, spender: Address, amount: i128)
+      // We need to pass: owner (who is approving), spender (who gets permission), amount
+      const spender = new Address(contractId); // The contract itself is the spender
+      const amount = 400000000; // 40 XLM in stroops
+      // const amount = 40 * 10000000; // 40 XLM in stroops
+      
+      const contractCallOperation = contract.call(
+        'approve', 
+        nativeToScVal(owner, { type: 'address' }), // owner
+        nativeToScVal(spender, { type: 'address' }), // spender (contract)
+        nativeToScVal(amount, { type: 'i128' }) // amount
+      );
       console.log('📞 Contract call operation created');
 
       // Build the transaction

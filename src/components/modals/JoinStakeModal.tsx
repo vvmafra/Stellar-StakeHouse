@@ -63,6 +63,20 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
     setErrorMessage("");
 
     try {
+      // First, authorize the contract to spend XLM (both XLM token auth + internal allowance)
+      console.log("Authorizing contract to spend XLM...");
+      const authResult = await sorobanService.authorizeComplete(
+        STELLAR_CONFIG.CONTRACT_ID,
+        wallet.publicKey,
+        400000000 // 40 XLM in stroops
+      );
+
+      if (!authResult.success) {
+        throw new Error(`Authorization failed: ${authResult.error?.message}`);
+      }
+
+      console.log("✅ Authorization successful, now calling joinStake...");
+      
       // Call the smart contract join function
       console.log("Calling joinStake function with params:", {
         contractId: STELLAR_CONFIG.CONTRACT_ID,

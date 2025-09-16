@@ -41,10 +41,11 @@ export const CreateStakeModal = ({ open, onOpenChange }: CreateStakeModalProps) 
       console.log('currentWallet', currentWallet);
       console.log('STELLAR_CONFIG.CONTRACT_ID', STELLAR_CONFIG.CONTRACT_ID);
 
-      // Call authorize_owner function
-      const result = await sorobanService.authorizeOwner(
+      // Call authorizeComplete function (does both XLM token auth + internal allowance)
+      const result = await sorobanService.authorizeComplete(
         STELLAR_CONFIG.CONTRACT_ID,
-        currentWallet.publicKey
+        currentWallet.publicKey,
+        400000000 // 40 XLM in stroops
       );
 
       if (result.success) {
