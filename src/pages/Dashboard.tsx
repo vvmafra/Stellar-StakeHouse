@@ -23,7 +23,7 @@ const mockStakes = [
     id: 2,
     tokenName: "USDC",
     totalAvailable: "25,000",
-    duration: "60 days",
+    duration: "28 days",
     APR: "12.2%",
     participants: 89,
     status: "active"
@@ -32,7 +32,7 @@ const mockStakes = [
     id: 3,
     tokenName: "SDF",
     totalAvailable: "100,000",
-    duration: "90 days",
+    duration: "29 days",
     APR: "15.7%",
     participants: 234,
     status: "active"
@@ -194,7 +194,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="font-body text-sm text-stellar-navy/70">Active Projects</p>
-                  <p className="font-subheading text-2xl text-stellar-black">{mockStakes.length}</p>
+                  <p className="font-subheading text-2xl text-stellar-black">{mockStakes.length + userStakes.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -261,8 +261,7 @@ const Dashboard = () => {
                     <div className="flex justify-between">
                       <span className="font-body text-sm text-stellar-navy/70">APR</span>
                       <span className="font-subheading text-lg font-semibold text-stellar-teal">
-                        {/* {stake.APR} */}
-                        TBD
+                        {stake.APR ? stake.APR : 'TBD'}
                       </span>
                     </div>
                     

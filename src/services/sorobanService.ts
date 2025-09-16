@@ -15,6 +15,7 @@ import {
   Memo,
   MemoType
 } from '@stellar/stellar-sdk';
+import { signTransaction } from '@stellar/freighter-api';
 import { rpc as StellarRpc } from '@stellar/stellar-sdk';
 import { STELLAR_CONFIG } from '../config/stellar';
 import { walletService } from './walletService';
@@ -530,6 +531,316 @@ export class SorobanService {
         error: {
           code: 'XLM_TOKEN_AUTH_ERROR',
           message: error.message || 'Failed to authorize XLM token',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
+   * Authorize XLM using XLM SAC (Stellar Asset Contract)
+   * This is the new method that uses XLM SAC instead of native XLM
+   */
+  public async authorizeXlmSac(contractId: string, ownerAddress: string, amount: number): Promise<SorobanTransactionResult> {
+    try {
+      console.log('🚀 Starting XLM SAC authorization process...');
+      console.log('📋 Parameters:', { contractId, ownerAddress, amount });
+
+      // Get current wallet
+      const currentWallet = walletService.getCurrentWallet();
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      // Get account info
+      const account = await this.server.getAccount(ownerAddress);
+      console.log('👤 Account loaded:', account.accountId());
+
+      // XLM SAC Contract ID (testnet)
+      const xlmSacContractId = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+      console.log('📄 XLM SAC Contract ID:', xlmSacContractId);
+
+      // Create XLM SAC contract instance
+      const xlmSacContract = new Contract(xlmSacContractId);
+      console.log('📄 XLM SAC contract instance created');
+
+      // Convert addresses to Address objects
+      const owner = new Address(ownerAddress);
+      const spender = new Address(contractId);
+      console.log('🔑 Owner address object created:', owner.toString());
+      console.log('🔑 Spender (contract) address object created:', spender.toString());
+
+      // Get current ledger sequence for expiration
+      const latestLedger = await this.server.getLatestLedger();
+      const expirationLedger = latestLedger.sequence + 17280; // 24 hours
+      console.log('⏰ Expiration ledger:', expirationLedger);
+
+      // Create the XLM SAC approve operation
+      const xlmSacApproveOperation = xlmSacContract.call(
+        'approve',
+        nativeToScVal(owner, { type: 'address' }), // from: the owner
+        nativeToScVal(spender, { type: 'address' }), // spender: the contract
+        nativeToScVal(amount, { type: 'i128' }), // amount
+        nativeToScVal(expirationLedger, { type: 'u32' }) // expiration
+      );
+      console.log('📞 XLM SAC approve operation created');
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      })
+        .addOperation(xlmSacApproveOperation)
+        .setTimeout(30)
+        .build();
+      console.log('🔨 Transaction built successfully');
+
+      // Prepare the transaction for Soroban
+      console.log('⚙️ Preparing transaction for Soroban...');
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+      console.log('✅ Transaction prepared successfully');
+
+      // Sign the prepared transaction using Freighter directly
+      console.log('✍️ Signing transaction with Freighter...');
+      const signResult = await signTransaction(preparedTransaction.toXDR(), {
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      });
+
+      if (!signResult.signedTxXdr) {
+        throw new Error('Failed to sign transaction');
+      }
+
+      console.log('✅ Transaction signed successfully');
+
+      // Submit the signed transaction
+      console.log('📤 Submitting transaction to network...');
+      const submitResult = await this.server.sendTransaction(
+        TransactionBuilder.fromXDR(signResult.signedTxXdr, STELLAR_CONFIG.networkPassphrase)
+      );
+
+      console.log('✅ Transaction submitted successfully');
+      console.log('📊 Submit result:', submitResult);
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        result: {
+          contractId,
+          ownerAddress,
+          amount,
+          message: 'XLM SAC authorization successful! Contract can now transfer XLM via SAC.',
+          xlmSacContractId,
+          expirationLedger
+        }
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error in XLM SAC authorization:', error);
+      return {
+        success: false,
+        error: {
+          code: 'XLM_SAC_AUTH_ERROR',
+          message: error.message || 'Failed to authorize XLM via SAC',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
+   * Join stake with XLM SAC approval in a single transaction
+   * @param contractId - The contract address
+   * @param userAddress - The user address to join
+   * @param amount - Amount to approve
+   * @returns Transaction result
+   */
+  public async joinStakeWithApproval(contractId: string, userAddress: string, amount: number): Promise<SorobanTransactionResult> {
+    try {
+      console.log('👥 Joining stake with XLM SAC approval in single transaction:', { contractId, userAddress, amount });
+
+      // Get current wallet
+      const currentWallet = walletService.getCurrentWallet();
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      // Get account details
+      const account = await this.server.getAccount(userAddress);
+      console.log('👤 Account loaded:', account.accountId());
+
+      // XLM SAC Contract ID
+      const xlmSacContractId = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+      
+      // Create XLM SAC contract instance
+      const xlmSacContract = new Contract(xlmSacContractId);
+      
+      // Create main contract instance
+      const mainContract = new Contract(contractId);
+      
+      // Convert addresses
+      const user = new Address(userAddress);
+      const spender = new Address(contractId);
+      
+      // Get current ledger sequence for expiration
+      const latestLedger = await this.server.getLatestLedger();
+      const expirationLedger = latestLedger.sequence + 17280; // 24 hours
+      
+      // Create XLM SAC approve operation
+      const xlmSacApproveOperation = xlmSacContract.call(
+        'approve',
+        nativeToScVal(user, { type: 'address' }),
+        nativeToScVal(spender, { type: 'address' }),
+        nativeToScVal(amount, { type: 'i128' }),
+        nativeToScVal(expirationLedger, { type: 'u32' })
+      );
+      
+      // Create join operation
+      const joinOperation = mainContract.call('join', nativeToScVal(user, { type: 'address' }));
+      
+      // Build the transaction with both operations
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      })
+        .addOperation(xlmSacApproveOperation)
+        .addOperation(joinOperation)
+        .setTimeout(30)
+        .build();
+      console.log('🔨 Transaction with both operations built successfully');
+
+      // Prepare the transaction for Soroban
+      console.log('⚙️ Preparing transaction for Soroban...');
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+      console.log('✅ Transaction prepared successfully');
+
+      // Sign the prepared transaction using Freighter directly
+      console.log('✍️ Signing transaction with Freighter...');
+      const signResult = await signTransaction(preparedTransaction.toXDR(), {
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      });
+
+      if (!signResult.signedTxXdr) {
+        throw new Error('Failed to sign transaction');
+      }
+
+      console.log('✅ Transaction signed successfully');
+
+      // Submit the signed transaction
+      console.log('📤 Submitting transaction to network...');
+      const submitResult = await this.server.sendTransaction(
+        TransactionBuilder.fromXDR(signResult.signedTxXdr, STELLAR_CONFIG.networkPassphrase)
+      );
+
+      console.log('✅ Transaction submitted successfully');
+      console.log('📊 Submit result:', submitResult);
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        result: {
+          contractId,
+          userAddress,
+          amount,
+          message: 'Successfully joined stake with XLM SAC approval in single transaction!'
+        }
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error joining stake with approval:', error);
+      return {
+        success: false,
+        error: {
+          code: 'JOIN_STAKE_WITH_APPROVAL_ERROR',
+          message: error.message || 'Failed to join stake with approval',
+          details: error
+        }
+      };
+    }
+  }
+
+  /**
+   * Call the join function directly (without additional approvals)
+   * @param contractId - The contract address
+   * @param userAddress - The user address to join
+   * @returns Transaction result
+   */
+  public async joinStakeDirect(contractId: string, userAddress: string): Promise<SorobanTransactionResult> {
+    try {
+      console.log('👥 Joining stake directly:', { contractId, userAddress });
+
+      // Get current wallet
+      const currentWallet = walletService.getCurrentWallet();
+      if (!currentWallet?.isConnected) {
+        throw new Error('Wallet is not connected');
+      }
+
+      // Get account details
+      const account = await this.server.getAccount(userAddress);
+      console.log('👤 Account loaded:', account.accountId());
+
+      // Create contract instance
+      const contract = new Contract(contractId);
+      
+      // Convert userAddress to Address object
+      const user = new Address(userAddress);
+      
+      // Create the join operation
+      const joinOperation = contract.call('join', nativeToScVal(user, { type: 'address' }));
+      console.log('📞 Join operation created');
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      })
+        .addOperation(joinOperation)
+        .setTimeout(30)
+        .build();
+      console.log('🔨 Transaction built successfully');
+
+      // Prepare the transaction for Soroban
+      console.log('⚙️ Preparing transaction for Soroban...');
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+      console.log('✅ Transaction prepared successfully');
+
+      // Sign the prepared transaction using Freighter directly
+      console.log('✍️ Signing transaction with Freighter...');
+      const signResult = await signTransaction(preparedTransaction.toXDR(), {
+        networkPassphrase: STELLAR_CONFIG.networkPassphrase,
+      });
+
+      if (!signResult.signedTxXdr) {
+        throw new Error('Failed to sign transaction');
+      }
+
+      console.log('✅ Transaction signed successfully');
+
+      // Submit the signed transaction
+      console.log('📤 Submitting transaction to network...');
+      const submitResult = await this.server.sendTransaction(
+        TransactionBuilder.fromXDR(signResult.signedTxXdr, STELLAR_CONFIG.networkPassphrase)
+      );
+
+      console.log('✅ Transaction submitted successfully');
+      console.log('📊 Submit result:', submitResult);
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        result: {
+          contractId,
+          userAddress,
+          message: 'Successfully joined stake!'
+        }
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error joining stake:', error);
+      return {
+        success: false,
+        error: {
+          code: 'JOIN_STAKE_ERROR',
+          message: error.message || 'Failed to join stake',
           details: error
         }
       };

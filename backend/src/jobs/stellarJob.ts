@@ -2,60 +2,59 @@ import { logger } from '../utils/logger.js';
 import { stellarService } from '../services/stellarService.js';
 
 class StellarJob {
-  private contractAddress: string;
+  // private contractAddress: string;
 
-  constructor() {
-    this.contractAddress = process.env.CONTRACT_ADDRESS || '';
-    if (!this.contractAddress) {
-      logger.warn('⚠️ CONTRACT_ADDRESS not set in environment variables');
-    }
-  }
+  // constructor() {
+  //   // Contract ID from the main project
+  //   this.contractAddress = "CDYKETT4G6VXMPRKFLSYFNGIWKN2UMQSGOCUN5BELOBZAOEQBVAPQW6T";
+  //   if (!this.contractAddress) {
+  //     logger.warn('⚠️ CONTRACT_ID not set in configuration');
+  //   }
+  // }
 
   /**
-   * Executa transfer_from do smart contract
-   * @param spender - Quem está executando a transferência
-   * @param from - Conta de origem
-   * @param to - Conta de destino
-   * @param amount - Quantidade em stroops
+   * Executa transfer_from_xlm_sac do smart contract usando a private key do contrato
    */
-  async runTransferFrom(spender: string, from: string, to: string, amount: string) {
+  async runTransferFromXlmSac() {
     try {
-      logger.info('🚀 Starting transfer_from job...', {
-        contractAddress: this.contractAddress,
-        spender,
-        from,
-        to,
-        amount
-      });
-
-      if (!this.contractAddress) {
-        logger.error('❌ Contract address not configured');
-        return;
-      }
+      logger.info('🚀 Starting transfer_from_xlm_sac job...');
 
       // Verificar conexão com Stellar primeiro
       const connectionStatus = await stellarService.checkConnection();
       if (!connectionStatus.connected) {
-        logger.error('❌ Cannot run transfer_from - Stellar connection failed');
+        logger.error('❌ Cannot run transfer_from_xlm_sac - Stellar connection failed');
         return;
       }
 
       logger.info(`🌐 Connected to Stellar network (Ledger: ${connectionStatus.latestLedger})`);
 
-      // Executar transfer_from
-      const result = await stellarService.transferFrom(
-        this.contractAddress,
-        spender,
+      const contractAddress = "CDYKETT4G6VXMPRKFLSYFNGIWKN2UMQSGOCUN5BELOBZAOEQBVAPQW6T";
+      
+      // Valores predefinidos para teste
+      const from = "GBZGAMPLCDROH5CGEJ2EUY52LTK5YSBUIIASRMKLH6IKOJNUHXWBL3RW"; // Endereço de origem
+      const to = "GBZGAMPLCDROH5CGEJ2EUY52LTK5YSBUIIASRMKLH6IKOJNUHXWBL3RW"; // Endereço de destino
+      const amount = "10000000000"; // 10 XLM em stroops
+
+      logger.info(`📋 Using predefined values:`, {
+        contractAddress,
+        from,
+        to,
+        amount
+      });
+
+      // Executar transfer_from_xlm_sac usando a private key do contrato
+      const result = await stellarService.transferFromXlmSac(
+        contractAddress,
         from,
         to,
         amount
       );
 
-      logger.info('🎉 Transfer_from job completed successfully!', result);
+      logger.info('🎉 Transfer_from_xlm_sac job completed successfully!', result);
       return result;
 
     } catch (error) {
-      logger.error('❌ Error in transfer_from job:', error);
+      logger.error('❌ Error in transfer_from_xlm_sac job:', error);
       throw error;
     }
   }
@@ -76,19 +75,16 @@ class StellarJob {
       
       logger.info(`🌐 Connected to Stellar network (Ledger: ${connectionStatus.latestLedger})`);
 
-      if (!this.contractAddress) {
-        logger.error('❌ Contract address not configured');
-        return;
-      }
+      const contractAddress = "CDYKETT4G6VXMPRKFLSYFNGIWKN2UMQSGOCUN5BELOBZAOEQBVAPQW6T";
 
       // 1. Verificar balance do owner
       logger.info('📊 Step 1: Getting owner balance...');
-      const owner = await stellarService.getOwner(this.contractAddress);
+      const owner = await stellarService.getOwner(contractAddress);
       logger.info(`💰 Owner balance: ${owner.balance} stroops`);
 
       // 2. Buscar participantes
       logger.info('👥 Step 2: Getting participants...');
-      const participants = await stellarService.getParticipants(this.contractAddress);
+      const participants = await stellarService.getParticipants(contractAddress);
       
       if (participants.length === 0) {
         logger.info('✅ No participants found, skipping distribution');
@@ -100,7 +96,19 @@ class StellarJob {
       // 3. Verificar saldos de token nativo dos participantes
       logger.info('🔍 Step 3: Checking native token balances...');
       const participantAddresses = participants.map(p => p.address);
-      const validParticipants = await stellarService.getMultipleNativeTokenBalances(participantAddresses);
+      
+      // Filtrar apenas endereços válidos do Stellar (começam com G e têm 56 caracteres)
+      const validAddresses = participantAddresses.filter(addr => 
+        addr && addr.startsWith('G') && addr.length === 56
+      );
+      
+      if (validAddresses.length === 0) {
+        logger.info('✅ No valid participant addresses found, skipping distribution');
+        return;
+      }
+      
+      logger.info(`🔍 Checking balances for ${validAddresses.length} valid addresses...`);
+      const validParticipants = await stellarService.getMultipleNativeTokenBalances(validAddresses);
       
       if (validParticipants.length === 0) {
         logger.info('✅ No participants with native token balance, skipping distribution');
@@ -113,12 +121,12 @@ class StellarJob {
       logger.info('🧮 Step 4: Calculating APR...');
       const totalStakes = participants.reduce((sum, participant) => sum + parseFloat(participant.stake), 0);
       logger.info(`📊 Total stakes: ${totalStakes} stroops`);
-      const aprData = await stellarService.calculateAPR(this.contractAddress, owner.balance, totalStakes);
+      const aprData = await stellarService.calculateAPR(contractAddress, owner.balance, totalStakes);
       logger.info(`📈 APR: ${(aprData.rate * 100).toFixed(2)}% (Daily: ${(aprData.dailyRate * 100).toFixed(4)}%)`);
 
       // 5. Distribuir recompensas
       logger.info('💰 Step 5: Distributing rewards...');
-      const distribution = await stellarService.distribute(this.contractAddress, validParticipants, aprData);
+      const distribution = await stellarService.distribute(contractAddress, validParticipants, aprData);
       
       logger.info(`🎉 Distribution cycle completed successfully!`);
       logger.info(`📊 Summary: ${distribution.totalDistributed} stroops distributed to ${distribution.participantsRewarded} participants`);

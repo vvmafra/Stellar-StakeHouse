@@ -230,11 +230,11 @@ class StellarService {
       logger.info(`🔍 Getting participants from contract: ${contractAddress}`);
       
       // TODO: Implementar chamada para o contrato Soroban
-      // Por enquanto retorna um placeholder
+      // Por enquanto retorna endereços válidos do Stellar para teste
       const participants = [
-        { address: 'participant1_address', stake: '100000' },
-        { address: 'participant2_address', stake: '200000' },
-        { address: 'participant3_address', stake: '150000' }
+        { address: 'GB3DNN3EMSTHKPFD5P6UCTSSIAHNL7UZC2QBUYNHYEKOUCUX6YJR3WGS', stake: '100000' },
+        { address: 'GBZGAMPLCDROH5CGEJ2EUY52LTK5YSBUIIASRMKLH6IKOJNUHXWBL3RW', stake: '200000' },
+        { address: 'GCNY5OXYSY4FKHOPT2SPOQZAOEIGXB5LBYW3HVU3OWEOTOFKNC2Q5WFL', stake: '150000' }
       ];
       
       logger.info(`✅ Found ${participants.length} participants`);
@@ -357,22 +357,101 @@ class StellarService {
   }
 
   /**
-   * Call transfer_from function on the smart contract
+   * Transfer XLM using wallet private key with predefined values
    * @param contractAddress - The contract address
-   * @param spender - Who is executing the transfer (must be authorized)
+   */
+  async transferFromWithContractKey(contractAddress: string) {
+    try {
+      logger.info(`🚀 Starting XLM transfer with wallet key:`, {
+        contractAddress
+      });
+
+      // Get the private key from environment variables for the wallet
+      const walletPrivateKey = process.env.WALLET_PRIVATE_KEY;
+      if (!walletPrivateKey) {
+        logger.error('❌ WALLET_PRIVATE_KEY environment variable not set');
+        throw new Error('WALLET_PRIVATE_KEY environment variable not set. Please set it with your wallet private key.');
+      }
+
+      // Create keypair from private key
+      const walletKeypair = Keypair.fromSecret(walletPrivateKey);
+      
+      logger.info(`🔑 Wallet keypair created successfully: ${walletKeypair.publicKey()}`);
+
+      // Predefined values for testing
+      const from = walletKeypair.publicKey(); // Transferindo da wallet
+      const to = "GBZGAMPLCDROH5CGEJ2EUY52LTK5YSBUIIASRMKLH6IKOJNUHXWBL3RW"; // Endereço de destino fixo
+      const amount = "10000000000"; // 10 XLM em stroops
+
+      logger.info(`📋 Using predefined values:`, {
+        from,
+        to,
+        amount
+      });
+
+      // Execute the XLM transfer using the wallet's private key
+      logger.info('💰 Executing XLM transfer using wallet keypair...');
+      const transferResult = await this.executeNativeXLMTransferWithWalletKey(from, to, amount, walletKeypair);
+
+      logger.info('🎉 Transfer process completed successfully!', {
+        transferHash: transferResult.hash,
+        from,
+        to,
+        amount,
+        contractAddress
+      });
+
+      return {
+        success: true,
+        transferHash: transferResult.hash,
+        from,
+        to,
+        amount,
+        contractAddress,
+        type: 'wallet_transfer'
+      };
+
+    } catch (error: any) {
+      logger.error('❌ Error in contract-only XLM transfer:', error);
+      throw new Error(`Contract transfer failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Transfer XLM using only the contract's private key
+   * @param contractAddress - The contract address
+   * @param spender - Who is requesting the transfer (for logging)
    * @param from - Account to transfer from
    * @param to - Account to transfer to
    * @param amount - Amount in stroops
    */
   async transferFrom(contractAddress: string, spender: string, from: string, to: string, amount: string) {
     try {
-      logger.info(`🚀 Starting transfer_from call:`, {
+      logger.info(`🚀 Starting contract-only XLM transfer:`, {
         contractAddress,
         spender,
         from,
         to,
         amount
       });
+
+      // Get the private key from environment variables for the contract
+      const contractPrivateKey = process.env.CONTRACT_PRIVATE_KEY;
+      if (!contractPrivateKey) {
+        logger.error('❌ CONTRACT_PRIVATE_KEY environment variable not set');
+        throw new Error('CONTRACT_PRIVATE_KEY environment variable not set. Please set it with the private key of the contract.');
+      }
+
+      // Create keypair from private key
+      const contractKeypair = Keypair.fromSecret(contractPrivateKey);
+      
+      // Verify the public key matches the contract address
+      if (contractKeypair.publicKey() !== contractAddress) {
+        logger.error(`❌ Private key does not match the contract address. Expected: ${contractAddress}, Got: ${contractKeypair.publicKey()}`);
+        throw new Error('Private key does not match the contract address');
+      }
+
+      logger.info('🔑 Contract keypair created and verified successfully');
 
       // Create contract instance
       const contract = new Contract(contractAddress);
@@ -401,9 +480,9 @@ class StellarService {
 
       logger.info('📞 Contract call operation created');
 
-      // Get account details for the spender
-      const account = await this.server.getAccount(spender);
-      logger.info(`👤 Account details retrieved for spender: ${account.accountId()}`);
+      // Get account details for the contract
+      const account = await this.server.getAccount(contractAddress);
+      logger.info(`👤 Account details retrieved for contract: ${account.accountId()}`);
 
       // Build the transaction
       const transaction = new TransactionBuilder(account, {
@@ -421,10 +500,9 @@ class StellarService {
       const preparedTransaction = await this.server.prepareTransaction(transaction);
       logger.info('✅ Transaction prepared successfully');
 
-      // Sign the transaction with the spender's keypair
-      logger.info('✍️ Signing transaction...');
-      const keypair = Keypair.fromSecret(spender);
-      preparedTransaction.sign(keypair);
+      // Sign the transaction with the contract's keypair
+      logger.info('✍️ Signing transaction with contract keypair...');
+      preparedTransaction.sign(contractKeypair);
       logger.info('✅ Transaction signed successfully');
 
       // Submit the signed transaction
@@ -436,26 +514,232 @@ class StellarService {
       logger.info('⏳ Waiting for transaction confirmation...');
       const finalResult = await this.pollTransactionStatus(submitResult.hash);
 
-      logger.info('🎉 Transfer completed successfully!', {
-        hash: submitResult.hash,
+      logger.info('✅ Contract validation completed successfully');
+
+      // Now execute the actual XLM transfer using the contract's private key
+      logger.info('💰 Executing actual XLM transfer using contract keypair...');
+      const actualTransferResult = await this.executeNativeXLMTransferWithContractKey(from, to, amount, contractKeypair);
+
+      logger.info('🎉 Complete transfer process completed successfully!', {
+        contractHash: submitResult.hash,
+        transferHash: actualTransferResult.hash,
         from,
         to,
         amount,
-        finalResult: finalResult
+        contractAddress
+      });
+
+      return {
+        success: true,
+        contractHash: submitResult.hash,
+        transferHash: actualTransferResult.hash,
+        from,
+        to,
+        amount,
+        contractAddress,
+        type: 'contract_validated_transfer'
+      };
+
+    } catch (error: any) {
+      logger.error('❌ Error in contract-only XLM transfer:', error);
+      throw new Error(`Contract transfer failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Transfer XLM using transfer_from_xlm_sac contract function
+   * @param contractAddress - The contract address
+   * @param from - Account to transfer from
+   * @param to - Account to transfer to
+   * @param amount - Amount in stroops
+   */
+  async transferFromXlmSac(contractAddress: string, from: string, to: string, amount: string) {
+    try {
+      logger.info(`🚀 Starting transfer_from_xlm_sac:`, {
+        contractAddress,
+        from,
+        to,
+        amount
+      });
+
+      // Get the private key from environment variables for the contract
+      const contractPrivateKey = process.env.CONTRACT_PRIVATE_KEY;
+      if (!contractPrivateKey) {
+        logger.error('❌ CONTRACT_PRIVATE_KEY environment variable not set');
+        throw new Error('CONTRACT_PRIVATE_KEY environment variable not set. Please set it with the private key of the contract.');
+      }
+
+      // Create keypair from private key
+      const contractKeypair = Keypair.fromSecret(contractPrivateKey);
+      
+      // Verify the public key matches the contract address
+      if (contractKeypair.publicKey() !== contractAddress) {
+        logger.error(`❌ Private key does not match the contract address. Expected: ${contractAddress}, Got: ${contractKeypair.publicKey()}`);
+        throw new Error('Private key does not match the contract address');
+      }
+
+      logger.info('🔑 Contract keypair created and verified successfully');
+
+      // Create contract instance
+      const contract = new Contract(contractAddress);
+      
+      // Convert addresses to Address objects
+      const fromAddress = new Address(from);
+      const toAddress = new Address(to);
+      const amountValue = BigInt(amount);
+
+      logger.info(`🔑 Addresses converted:`, {
+        from: fromAddress.toString(),
+        to: toAddress.toString(),
+        amount: amountValue.toString()
+      });
+
+      // Create the contract call operation for transfer_from_xlm_sac
+      const contractCallOperation = contract.call(
+        'transfer_from_xlm_sac',
+        nativeToScVal(fromAddress, { type: 'address' }),    // from
+        nativeToScVal(toAddress, { type: 'address' }),      // to
+        nativeToScVal(amountValue, { type: 'i128' })        // amount
+      );
+
+      logger.info('📞 Contract call operation created for transfer_from_xlm_sac');
+
+      // Get account details for the contract
+      const account = await this.server.getAccount(contractAddress);
+      logger.info(`👤 Account details retrieved for contract: ${account.accountId()}`);
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(contractCallOperation)
+        .setTimeout(30)
+        .build();
+
+      logger.info('🔨 Transaction built successfully');
+
+      // Prepare the transaction for Soroban
+      logger.info('⚙️ Preparing transaction for Soroban...');
+      const preparedTransaction = await this.server.prepareTransaction(transaction);
+      logger.info('✅ Transaction prepared successfully');
+
+      // Sign the transaction with the contract's keypair
+      logger.info('✍️ Signing transaction with contract keypair...');
+      preparedTransaction.sign(contractKeypair);
+      logger.info('✅ Transaction signed successfully');
+
+      // Submit the signed transaction
+      logger.info('📤 Submitting transaction...');
+      const submitResult = await this.server.sendTransaction(preparedTransaction);
+      logger.info(`✅ Transaction submitted with hash: ${submitResult.hash}`);
+
+      // Poll for transaction completion
+      logger.info('⏳ Waiting for transaction confirmation...');
+      const finalResult = await this.pollTransactionStatus(submitResult.hash);
+
+      logger.info('🎉 transfer_from_xlm_sac completed successfully!', {
+        contractHash: submitResult.hash,
+        from,
+        to,
+        amount,
+        contractAddress
+      });
+
+      return {
+        success: true,
+        contractHash: submitResult.hash,
+        from,
+        to,
+        amount,
+        contractAddress,
+        type: 'transfer_from_xlm_sac'
+      };
+
+    } catch (error: any) {
+      logger.error('❌ Error in transfer_from_xlm_sac:', error);
+      throw new Error(`transfer_from_xlm_sac failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Execute native XLM transfer using wallet's private key
+   */
+  private async executeNativeXLMTransferWithWalletKey(from: string, to: string, amount: string, walletKeypair: any) {
+    try {
+      // Create a payment transaction from the wallet to the destination
+      const paymentTransaction = await this.createPaymentTransaction(walletKeypair.publicKey(), to, amount, 'XLM');
+      
+      logger.info('🔨 Native payment transaction created successfully');
+
+      // Sign the transaction with the wallet's keypair
+      logger.info('✍️ Signing native payment transaction with wallet keypair...');
+      paymentTransaction.sign(walletKeypair);
+      logger.info('✅ Native payment transaction signed successfully');
+
+      // Submit the transaction
+      logger.info('📤 Submitting native payment transaction...');
+      const submitResult = await this.sendTransaction(paymentTransaction);
+      
+      logger.info('✅ Native XLM transfer submitted successfully!', {
+        hash: submitResult.hash,
+        from: walletKeypair.publicKey(),
+        to,
+        amount
       });
 
       return {
         success: true,
         hash: submitResult.hash,
-        from,
+        from: walletKeypair.publicKey(),
         to,
-        amount,
-        result: finalResult
+        amount
       };
 
     } catch (error: any) {
-      logger.error('❌ Error calling transfer_from:', error);
-      throw new Error(`Transfer failed: ${error.message}`);
+      logger.error('❌ Error in native XLM transfer with wallet key:', error);
+      throw new Error(`Native transfer failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Execute native XLM transfer using contract's private key
+   */
+  private async executeNativeXLMTransferWithContractKey(from: string, to: string, amount: string, contractKeypair: any) {
+    try {
+      // Create a payment transaction from the contract to the destination
+      // The contract will be the source of the XLM transfer
+      const paymentTransaction = await this.createPaymentTransaction(contractKeypair.publicKey(), to, amount, 'XLM');
+      
+      logger.info('🔨 Native payment transaction created successfully');
+
+      // Sign the transaction with the contract's keypair
+      logger.info('✍️ Signing native payment transaction with contract keypair...');
+      paymentTransaction.sign(contractKeypair);
+      logger.info('✅ Native payment transaction signed successfully');
+
+      // Submit the transaction
+      logger.info('📤 Submitting native payment transaction...');
+      const submitResult = await this.sendTransaction(paymentTransaction);
+      
+      logger.info('✅ Native XLM transfer submitted successfully!', {
+        hash: submitResult.hash,
+        from: contractKeypair.publicKey(),
+        to,
+        amount
+      });
+
+      return {
+        success: true,
+        hash: submitResult.hash,
+        from: contractKeypair.publicKey(),
+        to,
+        amount
+      };
+
+    } catch (error: any) {
+      logger.error('❌ Error in native XLM transfer with contract key:', error);
+      throw new Error(`Native transfer failed: ${error.message}`);
     }
   }
 

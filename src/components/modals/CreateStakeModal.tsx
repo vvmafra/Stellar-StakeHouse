@@ -51,8 +51,8 @@ export const CreateStakeModal = ({ open, onOpenChange, onStakeCreated }: CreateS
       
       console.log(`💰 Converting ${amountInXlm} XLM to ${amountInStroops} stroops`);
 
-      // Call authorizeComplete function (does both XLM token auth + internal allowance)
-      const result = await sorobanService.authorizeComplete(
+      // Call authorizeXlmSac function (uses XLM SAC for authorization)
+      const result = await sorobanService.authorizeXlmSac(
         STELLAR_CONFIG.CONTRACT_ID,
         currentWallet.publicKey,
         amountInStroops
@@ -201,10 +201,8 @@ export const CreateStakeModal = ({ open, onOpenChange, onStakeCreated }: CreateS
                 <SelectValue placeholder="Select duration" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="30 days">30 days (8-10% APR)</SelectItem>
-                <SelectItem value="60 days">60 days (10-14% APR)</SelectItem>
-                <SelectItem value="90 days">90 days (14-18% APR)</SelectItem>
-                <SelectItem value="custom">Custom duration</SelectItem>
+                <SelectItem value="30 days">30 days</SelectItem>
+                {/* <SelectItem value="custom">Custom duration</SelectItem> */}
               </SelectContent>
             </Select>
           </div>
@@ -253,10 +251,10 @@ export const CreateStakeModal = ({ open, onOpenChange, onStakeCreated }: CreateS
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                  {/* <div className="flex items-center space-x-2">
                     <Users className="w-4 h-4 text-stellar-gold" />
                     <span className="font-body text-sm text-stellar-navy/70">Est. APR</span>
-                  </div>
+                  </div> */}
                   <span className="font-subheading text-sm font-semibold text-stellar-teal">
                     {estimatedAPR}
                   </span>

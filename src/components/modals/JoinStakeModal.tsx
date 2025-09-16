@@ -99,32 +99,17 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
       
       console.log(`💰 Converting ${amountInXlm} XLM to ${amountInStroops} stroops`);
 
-      // First, authorize the contract to spend XLM (both XLM token auth + internal allowance)
-      console.log("Authorizing contract to spend XLM...");
-      const authResult = await sorobanService.authorizeComplete(
+      // Call the smart contract join function directly (no authorization needed)
+      console.log("Joining stake - no XLM transfer needed, just adding to participants list");
+      console.log("Calling join function with params:", {
+        contractId: STELLAR_CONFIG.CONTRACT_ID,
+        walletId: wallet.publicKey
+      });
+      
+      const result = await sorobanService.joinStakeDirect(
         STELLAR_CONFIG.CONTRACT_ID,
-        wallet.publicKey,
-        amountInStroops
+        wallet.publicKey
       );
-
-      if (!authResult.success) {
-        throw new Error(`Authorization failed: ${authResult.error?.message}`);
-      }
-
-      console.log("✅ Authorization successful, now calling joinStake...");
-      
-      // Call the smart contract join function
-      console.log("Calling joinStake function with params:", {
-        contractId: STELLAR_CONFIG.CONTRACT_ID,
-        walletId: wallet.publicKey,
-        amount: amount
-      });
-      
-      const result = await sorobanService.joinStake({
-        contractId: STELLAR_CONFIG.CONTRACT_ID,
-        walletId: wallet.publicKey,
-        amount: amount
-      });
 
       if (result.success) {
         setTransactionStatus('success');
@@ -304,7 +289,7 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
             </Button>
             <Button
               onClick={() => {
-                alert("Button clicked! Check console for details.");
+                // alert("Button clicked! Check console for details.");
                 console.log("🔥 BUTTON CLICKED!", { amount, isConnected, isConfirming });
                 handleConfirm();
               }}
@@ -316,7 +301,7 @@ export const JoinStakeModal = ({ open, onOpenChange, stake }: JoinStakeModalProp
                transactionStatus === 'success' ? "Success!" :
                transactionStatus === 'error' ? "Try Again" :
                !isConnected ? "Connect Wallet" :
-               "Confirm Stake"}
+               "Confirm Delegation"}
             </Button>
           </div>
         </div>
