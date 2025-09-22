@@ -1,73 +1,89 @@
-# Welcome to your Lovable project
+# Stellar StakeHouse
 
-## Project info
+Daily token-rewards staking prototype built on the **Stellar** ecosystem.  
+StakeHouse lets a project create a reward pool (e.g., `10,000 KALE` over 1 year) and distribute daily rewards to participants **pro-rata** to their delegated balances.
 
-**URL**: https://lovable.dev/projects/6d89a4c1-4a8b-46d6-bf67-3ad800789dea
+> **Status:** WIP / hackathon prototype — frontend is live, contracts and backend are under active development.
 
-## How can I edit this code?
+**Live demo:** https://stellar-stake-house.vercel.app/  
+**Repository:** https://github.com/vvmafra/Stellar-StakeHouse
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## ✨ Features (current & planned)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6d89a4c1-4a8b-46d6-bf67-3ad800789dea) and start prompting.
+- **Create & view stakes**: Projects can define a token, total rewards, and distribution period. Participants can discover open stakes. *(UI present; contract wiring WIP)*
+- **Delegation model**: Users “delegate” balances for reward share without transferring custody. *(Contract mechanics WIP)*
+- **Daily distribution logic**: Rewards split by participant share snapshots (e.g., once per day). *(Indexing/keeper strategy WIP)*
+- **Stellar-first**: Designed to integrate with Soroban contracts and popular Stellar wallets. *(Wallet wiring WIP)*
+- **Modern UI**: React + Vite + Tailwind + shadcn/ui.
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🧱 Architecture
+apps/
+└─ (root) React + Vite frontend (TypeScript, Tailwind, shadcn/ui)
+backend/
+└─ WIP Node/Express helpers (e.g., snapshots/cron, read APIs)
+contracts/
+└─ stellar-stake-house/ (Rust, Soroban scaffolding)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Frontend** renders stake lists, details, and create/join flows.
+- **Contracts (Rust/Soroban)** hold core reward accounting (indexes, emission rate, snapshots, claim).
+- **Backend (Node/Express)** optional:
+  - run periodic snapshot/keeper jobs if you choose off-chain scheduling,
+  - offer read-optimized endpoints and indexing for the UI.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+> You can run *pure on-chain* with permissionless snapshot triggers **or** hybrid with a small backend job. Pick one model and stick to it for consistency.
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🧰 Tech Stack
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- **Frontend:** Vite • React • TypeScript • Tailwind CSS • shadcn/ui  
+- **Smart Contracts:** Rust (Soroban)  
+- **Backend (optional):** Node.js/Express (WIP)  
+- **Deploy:** Vercel (frontend)
 
-# Step 3: Install the necessary dependencies.
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ (or Bun, if you prefer)
+- PNPM/NPM/Yarn (examples use NPM)
+
+### 1) Clone & Install
+git clone https://github.com/vvmafra/Stellar-StakeHouse.git
+cd Stellar-StakeHouse
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 2) Run the Frontend
 npm run dev
-```
+The dev server should start at http://localhost:5173.
 
-**Edit a file directly in GitHub**
+### 3) (Optional) Run the Backend
+cd backend
+npm i
+npm run dev
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+🧪 How the Rewards Work (Design)
+Daily emission: A stake defines totalRewards over durationDays.
+Per-day payout = totalRewards / durationDays.
 
-**Use GitHub Codespaces**
+Splitting:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+userShare(D) = userDelegated(D) / totalDelegated(D)
+userReward(D) = perDayPayout * userShare(D)
 
-## What technologies are used for this project?
+Snapshots:
+- Option A: Permissionless on-chain function callable once per period.
+- Option B: Off-chain keeper/cron calls a function at the end of each period.
+Mitigations: re-entrancy guards, timestamp checks, anti-front-running at boundaries.
 
-This project is built with:
+🔌 Wallet & Network
+Default network: Stellar Testnet
+Wallets: integrate with Stellar wallet (e.g., Freighter).
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/6d89a4c1-4a8b-46d6-bf67-3ad800789dea) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+⚠️ Disclaimer
+This is experimental software built for learning and hackathon prototyping. Do not use in production without audits and testing.
